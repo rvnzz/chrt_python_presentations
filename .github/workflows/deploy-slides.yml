@@ -1,0 +1,161 @@
+name: Deploy Slidev Presentations with Bun
+
+on:
+  push:
+    branches: [ main ]
+    paths: ['slides/**']
+  pull_request:
+    paths: ['slides/**']
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
+
+    - name: Install dependencies with Bun
+      run: bun install
+
+    - name: Generate presentations list
+      run: |
+        mkdir -p dist
+        echo '[]' > dist/presentations.json
+        
+        # Сканируем папки slides/*
+        find slides -maxdepth 1 -type d -not -path 'slides/' | while read dir; do
+          name=$(basename "$dir")
+          title=$(grep -r "^# " "$dir/slides.md" 2>/dev/null | head -1 | sed 's/^# //')
+          [ -z "$title" ] && title="$name"
+          
+          echo "{\"id\":\"$name\",\"title\":\"$title\",\"path\":\"/$name/index.html\"}" | bunx jq -s -c add >> temp.json
+        done
+        
+        cat temp.json | bunx jq -s > dist/presentations.json
+        rm temp.json
+
+    - name: Build all Slidev presentations with Bun
+      run: |
+        # Строим каждую презентацию в свою папку
+        for dir in slides/*; do
+          if [ -d "$dir" ] && [ -f "$dir/slides.md" ]; then
+            name=$(basename "$dir")
+            echo "Building $name with Bun..."
+            bunx slidev build "$dir/slides.md" --out "dist/$name" --base "/$name/" || echo "Failed to build $name"
+          fi
+        done
+
+    - name: Build index page
+      run: |
+        cat > dist/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Мои Slidev презентации</title>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+            * { box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+              max-width: 900px; margin: 0 auto; padding: 2rem 1rem; 
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              min-height: 100vh;
+              color: white;
+            }
+            .header { text-align: center; margin-bottom: 3rem; }
+            .header h1 { font-size: 2.5rem; margin: 0; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+            .header p { opacity: 0.9; margin: 0.5rem 0 0 0; font-size: 1.1rem; }
+            .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1.5rem; }
+            .presentation { 
+              background: rgba(255,255,255,0.1); 
+              backdrop-filter: blur(10px); 
+              border-radius: 16px; 
+              padding: 2rem; 
+              cursor: pointer; 
+              transition: all 0.3s ease;
+              border: 1px solid rgba(255,255,255,0.2);
+            }
+            .presentation:hover { 
+              transform: translateY(-5px); 
+              box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+              background: rgba(255,255,255,0.2);
+            }
+            .presentation h3 { 
+              margin: 0 0 0.5rem 0; 
+              font-size: 1.4rem; 
+              display: flex; 
+              align-items: center;
+              gap: 0.5rem;
+            }
+            .presentation .id { 
+              color: rgba(255,255,255,0.7); 
+              font-size: 0.9rem; 
+              margin: 0.5rem 0 1rem 0;
+              font-family: monospace;
+            }
+            @media (max-width: 768px) { 
+              .grid { grid-template-columns: 1fr; }
+              .header h1 { font-size: 2rem; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>🎯 Мои презентации</h1>
+            <p>Выберите презентацию для просмотра</p>
+          </div>
+          <div id="presentations" class="grid"></div>
+          
+          <script>
+            fetch('/presentations.json')
+              .then(r => r.json())
+              .then(presentations => {
+                const container = document.getElementById('presentations');
+                presentations.forEach((p, i) => {
+                  const div = document.createElement('div');
+                  div.className = 'presentation';
+                  div.onclick = () => window.location = p.path;
+                  div.innerHTML = `
+                    <h3>📊 ${p.title}</h3>
+                    <div class="id">${p.id}</div>
+                  `;
+                  container.appendChild(div);
+                });
+              })
+              .catch(() => {
+                document.getElementById('presentations').innerHTML = 
+                  '<div style="grid-column: 1/-1; text-align: center; padding: 2rem;">Презентации пока не готовы</div>';
+              });
+          </script>
+        </body>
+        </html>
+        EOF
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: dist/
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
