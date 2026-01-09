@@ -71,6 +71,9 @@ jobs:
         done
         
         echo "::notice::Built $success/$total presentations"
+
+        ls dist/
+
         [ "$success" -gt 0 ] || exit 1
 
     - name: Create index page
