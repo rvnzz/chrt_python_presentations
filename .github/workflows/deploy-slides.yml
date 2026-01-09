@@ -1,17 +1,10 @@
-# .github/workflows/deploy-slides.yml
-name: Deploy Slidev Presentations (MD files)
+# .github/workflows/docker-deploy.yml
+name: Build & Deploy Docker
 
 on:
   push:
     branches: [ main ]
-    paths: ['slides/**']
-  pull_request:
-    paths: ['slides/**']
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+    paths: ['slides/**', 'Dockerfile', 'build-slides.sh']
 
 jobs:
   build:
@@ -20,190 +13,34 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup Bun
-      uses: oven-sh/setup-bun@v2
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-    - name: Install dependencies
-      run: bun install
-
-    - name: Generate presentations list
-      run: |
-        mkdir -p dist
-        presentations=()
-        
-        # ✅ ИЩЕМ .md ФАЙЛЫ В slides/
-        while IFS= read -r -d '' file; do
-          name=$(basename "$file" .md)
-          title=$(grep -m1 "^# " "$file" 2>/dev/null | sed 's/^# *//' | sed 's/^[[:space:]]*//' | head -c 50)
-          [ -z "$title" ] && title="$name"
-          
-          presentations+=("{\"id\":\"$name\",\"title\":\"$title\",\"path\":\"/$name/index.html\"}")
-        done < <(find slides -name "*.md" -print0)
-        
-        if [ ${#presentations[@]} -gt 0 ]; then
-          printf '%s\n' "${presentations[@]}" | bunx jq -s . > dist/presentations.json
-          echo "✅ Generated $(wc -l < dist/presentations.json) presentations:"
-          cat dist/presentations.json
-        else
-          echo '⚠️ No .md files found in slides/'
-          echo '[]' > dist/presentations.json
-        fi
-
-    - name: Build all Slidev presentations
-      run: |
-        total=0
-        success=0
-        
-        for file in slides/*.md; do
-          if [ -f "$file" ]; then
-            name=$(basename "$file" .md)
-            echo "::group::Building $name"
-            
-            total=$((total + 1))
-            bunx slidev build "$file" --out "../dist/$name" --base "/$name/" && {
-              success=$((success + 1))
-              echo "✅ $name → dist/$name/"
-            } || {
-              echo "❌ $name failed"
-            }
-            echo "::endgroup::"
-          fi
-        done
-        
-        echo "::notice::Built $success/$total presentations"
-
-        ls dist/
-
-        [ "$success" -gt 0 ] || exit 1
-
-    - name: Create index page
-      run: |
-        cat > dist/index.html << 'EOF'
-        <!DOCTYPE html>
-        <html lang="ru">
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Мои Slidev презентации</title>
-          <style>
-            * { box-sizing: border-box; margin: 0; padding: 0; }
-            body { 
-              font-family: system-ui, -apple-system, sans-serif; 
-              min-height: 100vh; 
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              color: white;
-              padding: 2rem 1rem;
-            }
-            .container { max-width: 1000px; margin: 0 auto; }
-            .header { text-align: center; margin-bottom: 3rem; }
-            .header h1 { 
-              font-size: clamp(1.8rem, 5vw, 3rem); 
-              margin-bottom: 0.5rem;
-              text-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            }
-            .subtitle { opacity: 0.9; font-size: 1.1rem; }
-            .grid { 
-              display: grid; 
-              grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); 
-              gap: 1.5rem; 
-            }
-            .card { 
-              background: rgba(255,255,255,0.15); 
-              backdrop-filter: blur(20px); 
-              border-radius: 20px; 
-              padding: 2rem; 
-              cursor: pointer; 
-              transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-              border: 1px solid rgba(255,255,255,0.2);
-              position: relative;
-              overflow: hidden;
-            }
-            .card::before {
-              content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
-              background: linear-gradient(90deg, #ff6b6b, #4ecdc4, #45b7d1);
-            }
-            .card:hover { 
-              transform: translateY(-8px) scale(1.02); 
-              box-shadow: 0 25px 50px rgba(0,0,0,0.3);
-              background: rgba(255,255,255,0.25);
-            }
-            .card h3 { 
-              font-size: 1.3rem; 
-              margin-bottom: 0.5rem;
-              display: flex; align-items: center; gap: 0.75rem;
-            }
-            .card .id { 
-              color: rgba(255,255,255,0.8); 
-              font-family: 'SF Mono', monospace;
-              font-size: 0.85rem;
-              margin-bottom: 1rem;
-              padding: 0.25rem 0.5rem;
-              background: rgba(0,0,0,0.2);
-              border-radius: 4px;
-              display: inline-block;
-            }
-            .empty { 
-              grid-column: 1/-1; 
-              text-align: center; 
-              padding: 4rem 2rem;
-              opacity: 0.7;
-            }
-            @media (max-width: 768px) { 
-              .grid { grid-template-columns: 1fr; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>🎯 Презентации</h1>
-              <p class="subtitle">Выберите презентацию для просмотра</p>
-            </div>
-            <div id="presentations" class="grid"></div>
-          </div>
-          
-          <script>
-            fetch('/presentations.json')
-              .then(r => r.json())
-              .then(presentations => {
-                const container = document.getElementById('presentations');
-                if (presentations.length === 0) {
-                  container.innerHTML = '<div class="empty">📝 Добавьте .md файлы в <code>slides/</code></div>';
-                  return;
-                }
-                presentations.forEach(p => {
-                  const card = document.createElement('div');
-                  card.className = 'card';
-                  card.onclick = () => window.location.href = p.path;
-                  card.innerHTML = `
-                    <h3>📊 ${p.title}</h3>
-                    <div class="id">${p.id}</div>
-                  `;
-                  container.appendChild(card);
-                });
-              })
-              .catch(() => {
-                document.getElementById('presentations').innerHTML = 
-                  '<div class="empty">⚠️ Ошибка загрузки списка</div>';
-              });
-          </script>
-        </body>
-        </html>
-        EOF
-
-    - name: Upload artifact
-      uses: actions/upload-pages-artifact@v3
+    - name: Login to DockerHub
+      uses: docker/login-action@v3
       with:
-        path: dist/
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  deploy:
-    if: github.ref == 'refs/heads/main'
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-    - name: Deploy to GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v4
+    - name: Build & push Docker image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        push: true
+        tags: |
+          ravonzz174/chrt-python-slidev:latest
+          ravonzz174/chrt-python-slidev:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    # - name: Deploy to VDS via SSH
+    #   uses: appleboy/ssh-action@v1.0.3
+    #   with:
+    #     host: ${{ secrets.VDS_HOST }}
+    #     username: ${{ secrets.VDS_USER }}
+    #     key: ${{ secrets.VDS_SSH_KEY }}
+    #     script: |
+    #       cd /opt/slidev-host
+    #       docker-compose pull
+    #       docker-compose up -d
+    #       docker image prune -f
