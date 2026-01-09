@@ -5,27 +5,54 @@ echo "🔨 Building Slidev presentations..."
 
 mkdir -p dist
 
-# Генерируем presentations.json
-presentations=()
+# ✅ Фикс: используем временный файл вместо массива
+TEMP_JSON="/tmp/presentations.tmp"
+echo "[" > "$TEMP_JSON"
+
+FIRST=1
 for file in slides/*.md; do
   [ -f "$file" ] || continue
   name=$(basename "$file" .md)
-  title=$(grep -m1 "^# " "$file" 2>/dev/null | sed 's/^# *//' || echo "$name")
   
-  presentations="$presentations{\"id\":\"$name\",\"title\":\"$title\",\"path\":\"/$name/index.html\"},"
+  # Заголовок из первого # 
+  title=$(grep -m1 "^# " "$file" 2>/dev/null | sed 's/^# *//' || echo "$name")
+  title=$(echo "$title" | sed 's/"/\\"/g' | cut -c1-50)  # Эскейп " и урезаем
+  
+  if [ $FIRST -eq 0 ]; then
+    echo "," >> "$TEMP_JSON"
+  fi
+  FIRST=0
+  
+  cat >> "$TEMP_JSON" << EOF
+  {
+    "id": "$name",
+    "title": "$title",
+    "path": "/$name/index.html"
+  }
+EOF
 done
 
-# JSON
-cat > dist/presentations.json << EOF
-[${presentations%,}]
-EOF
+echo "]" >> "$TEMP_JSON"
+mv "$TEMP_JSON" dist/presentations.json
+
+echo "✅ presentations.json created ($(grep -c '"id"' dist/presentations.json || echo 0) items)"
 
 # Билдим каждую презентацию
+count=0
 for file in slides/*.md; do
   [ -f "$file" ] || continue
   name=$(basename "$file" .md)
   echo "Building $name..."
-  npx slidev build "$file" --out "dist/$name" --base "/$name/"
+  
+  bunx slidev build "$file" \
+    --out "../dist/$name" \
+    --base "/$name/"    
+  count=$((count + 1))
 done
 
-echo "✅ Built $(find dist -name 'index.html' -not -path 'dist/index.html' | wc -l) presentations"
+echo "✅ Built $count presentations"
+
+# Копируем главную страницу
+cp index-template.html dist/index.html
+
+echo "🎉 Build complete!"
