@@ -60,7 +60,7 @@ jobs:
             echo "::group::Building $name"
             
             total=$((total + 1))
-            bunx slidev build "$file" --out "dist/$name" --base "/$name/" && {
+            bunx slidev build "$file" --out "../dist/$name" --base "/$name/" && {
               success=$((success + 1))
               echo "✅ $name → dist/$name/"
             } || {
