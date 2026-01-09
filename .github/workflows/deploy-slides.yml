@@ -18,15 +18,11 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
     - name: Setup Bun
       uses: oven-sh/setup-bun@v2
-      with:
-        bun-version: latest
 
-    - name: Install dependencies with Bun
+    - name: Install dependencies
       run: bun install
 
     - name: Generate presentations list
@@ -34,110 +30,164 @@ jobs:
         mkdir -p dist
         echo '[]' > dist/presentations.json
         
-        # Сканируем папки slides/*
-        find slides -maxdepth 1 -type d -not -path 'slides/' | while read dir; do
+        # ✅ ИСПРАВЛЕНО: правильный find без / в конце
+        presentations=()
+        while IFS= read -r -d '' dir; do
           name=$(basename "$dir")
-          title=$(grep -r "^# " "$dir/slides.md" 2>/dev/null | head -1 | sed 's/^# //')
-          [ -z "$title" ] && title="$name"
+          # Ищем заголовок в slides.md
+          if [ -f "$dir/slides.md" ]; then
+            title=$(grep -m1 "^# " "$dir/slides.md" 2>/dev/null | sed 's/^# *//' | sed 's/^[[:space:]]*//' | head -c 50)
+            [ -z "$title" ] && title="$name"
+          else
+            title="$name"
+          fi
           
-          echo "{\"id\":\"$name\",\"title\":\"$title\",\"path\":\"/$name/index.html\"}" | bunx jq -s -c add >> temp.json
-        done
+          presentations+=("{\"id\":\"$name\",\"title\":\"$title\",\"path\":\"/$name/index.html\"}")
+        done < <(find slides -mindepth 1 -maxdepth 1 -type d -print0)
         
-        cat temp.json | bunx jq -s > dist/presentations.json
-        rm temp.json
+        if [ ${#presentations[@]} -gt 0 ]; then
+          printf '%s\n' "${presentations[@]}" | bunx jq -s . > dist/presentations.json
+          echo "Generated $(wc -l < dist/presentations.json) presentations"
+        else
+          echo "No presentations found"
+        fi
 
-    - name: Build all Slidev presentations with Bun
+    - name: Build all Slidev presentations
       run: |
-        # Строим каждую презентацию в свою папку
-        for dir in slides/*; do
-          if [ -d "$dir" ] && [ -f "$dir/slides.md" ]; then
+        total=0
+        success=0
+        
+        for dir in slides/*/; do
+          if [ -d "$dir" ]; then
             name=$(basename "$dir")
-            echo "Building $name with Bun..."
-            bunx slidev build "$dir/slides.md" --out "dist/$name" --base "/$name/" || echo "Failed to build $name"
+            echo "::group::Building $name"
+            
+            if [ -f "$dir/slides.md" ]; then
+              total=$((total + 1))
+              bunx slidev build "$dir/slides.md" --out "dist/$name" --base "/$name/" && {
+                success=$((success + 1))
+                echo "✅ $name built successfully"
+              } || echo "❌ $name failed"
+            else
+              echo "⚠️  No slides.md in $name"
+            fi
+            echo "::endgroup::"
           fi
         done
+        
+        echo "Built $success/$total presentations"
+        [ "$success" -gt 0 ] || exit 1
 
-    - name: Build index page
+    - name: Create index page
       run: |
         cat > dist/index.html << 'EOF'
         <!DOCTYPE html>
-        <html>
+        <html lang="ru">
         <head>
-          <title>Мои Slidev презентации</title>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Мои Slidev презентации</title>
           <style>
-            * { box-sizing: border-box; }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
             body { 
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-              max-width: 900px; margin: 0 auto; padding: 2rem 1rem; 
+              font-family: system-ui, -apple-system, sans-serif; 
+              min-height: 100vh; 
               background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              min-height: 100vh;
               color: white;
+              padding: 2rem 1rem;
             }
+            .container { max-width: 1000px; margin: 0 auto; }
             .header { text-align: center; margin-bottom: 3rem; }
-            .header h1 { font-size: 2.5rem; margin: 0; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-            .header p { opacity: 0.9; margin: 0.5rem 0 0 0; font-size: 1.1rem; }
-            .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1.5rem; }
-            .presentation { 
-              background: rgba(255,255,255,0.1); 
-              backdrop-filter: blur(10px); 
-              border-radius: 16px; 
+            .header h1 { 
+              font-size: clamp(1.8rem, 5vw, 3rem); 
+              margin-bottom: 0.5rem;
+              text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            }
+            .subtitle { opacity: 0.9; font-size: 1.1rem; }
+            .grid { 
+              display: grid; 
+              grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); 
+              gap: 1.5rem; 
+            }
+            .card { 
+              background: rgba(255,255,255,0.15); 
+              backdrop-filter: blur(20px); 
+              border-radius: 20px; 
               padding: 2rem; 
               cursor: pointer; 
-              transition: all 0.3s ease;
+              transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
               border: 1px solid rgba(255,255,255,0.2);
+              position: relative;
+              overflow: hidden;
             }
-            .presentation:hover { 
-              transform: translateY(-5px); 
-              box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-              background: rgba(255,255,255,0.2);
+            .card::before {
+              content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+              background: linear-gradient(90deg, #ff6b6b, #4ecdc4, #45b7d1);
             }
-            .presentation h3 { 
-              margin: 0 0 0.5rem 0; 
-              font-size: 1.4rem; 
-              display: flex; 
-              align-items: center;
-              gap: 0.5rem;
+            .card:hover { 
+              transform: translateY(-8px) scale(1.02); 
+              box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+              background: rgba(255,255,255,0.25);
             }
-            .presentation .id { 
-              color: rgba(255,255,255,0.7); 
-              font-size: 0.9rem; 
-              margin: 0.5rem 0 1rem 0;
-              font-family: monospace;
+            .card h3 { 
+              font-size: 1.3rem; 
+              margin-bottom: 0.5rem;
+              display: flex; align-items: center; gap: 0.75rem;
+            }
+            .card .id { 
+              color: rgba(255,255,255,0.8); 
+              font-family: 'SF Mono', monospace;
+              font-size: 0.85rem;
+              margin-bottom: 1rem;
+              padding: 0.25rem 0.5rem;
+              background: rgba(0,0,0,0.2);
+              border-radius: 4px;
+              display: inline-block;
+            }
+            .empty { 
+              grid-column: 1/-1; 
+              text-align: center; 
+              padding: 4rem 2rem;
+              opacity: 0.7;
             }
             @media (max-width: 768px) { 
               .grid { grid-template-columns: 1fr; }
-              .header h1 { font-size: 2rem; }
             }
           </style>
         </head>
         <body>
-          <div class="header">
-            <h1>🎯 Мои презентации</h1>
-            <p>Выберите презентацию для просмотра</p>
+          <div class="container">
+            <div class="header">
+              <h1>🎯 Презентации</h1>
+              <p class="subtitle">Выберите презентацию для просмотра</p>
+            </div>
+            <div id="presentations" class="grid"></div>
           </div>
-          <div id="presentations" class="grid"></div>
           
           <script>
             fetch('/presentations.json')
               .then(r => r.json())
               .then(presentations => {
                 const container = document.getElementById('presentations');
-                presentations.forEach((p, i) => {
-                  const div = document.createElement('div');
-                  div.className = 'presentation';
-                  div.onclick = () => window.location = p.path;
-                  div.innerHTML = `
+                if (presentations.length === 0) {
+                  container.innerHTML = '<div class="empty">📝 Презентации пока не добавлены<br><small>Добавьте папки в <code>slides/</code></small></div>';
+                  return;
+                }
+                presentations.forEach(p => {
+                  const card = document.createElement('div');
+                  card.className = 'card';
+                  card.onclick = () => window.location.href = p.path;
+                  card.innerHTML = `
                     <h3>📊 ${p.title}</h3>
                     <div class="id">${p.id}</div>
                   `;
-                  container.appendChild(div);
+                  container.appendChild(card);
                 });
               })
-              .catch(() => {
+              .catch(err => {
+                console.error('Error:', err);
                 document.getElementById('presentations').innerHTML = 
-                  '<div style="grid-column: 1/-1; text-align: center; padding: 2rem;">Презентации пока не готовы</div>';
+                  '<div class="empty">⚠️ Ошибка загрузки списка</div>';
               });
           </script>
         </body>
@@ -150,6 +200,7 @@ jobs:
         path: dist/
 
   deploy:
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
