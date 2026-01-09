@@ -1,4 +1,5 @@
-name: Deploy Slidev Presentations with Bun
+# .github/workflows/deploy-slides.yml
+name: Deploy Slidev Presentations (MD files)
 
 on:
   push:
@@ -28,28 +29,24 @@ jobs:
     - name: Generate presentations list
       run: |
         mkdir -p dist
-        echo '[]' > dist/presentations.json
-        
-        # ✅ ИСПРАВЛЕНО: правильный find без / в конце
         presentations=()
-        while IFS= read -r -d '' dir; do
-          name=$(basename "$dir")
-          # Ищем заголовок в slides.md
-          if [ -f "$dir/slides.md" ]; then
-            title=$(grep -m1 "^# " "$dir/slides.md" 2>/dev/null | sed 's/^# *//' | sed 's/^[[:space:]]*//' | head -c 50)
-            [ -z "$title" ] && title="$name"
-          else
-            title="$name"
-          fi
+        
+        # ✅ ИЩЕМ .md ФАЙЛЫ В slides/
+        while IFS= read -r -d '' file; do
+          name=$(basename "$file" .md)
+          title=$(grep -m1 "^# " "$file" 2>/dev/null | sed 's/^# *//' | sed 's/^[[:space:]]*//' | head -c 50)
+          [ -z "$title" ] && title="$name"
           
           presentations+=("{\"id\":\"$name\",\"title\":\"$title\",\"path\":\"/$name/index.html\"}")
-        done < <(find slides -mindepth 1 -maxdepth 1 -type d -print0)
+        done < <(find slides -name "*.md" -print0)
         
         if [ ${#presentations[@]} -gt 0 ]; then
           printf '%s\n' "${presentations[@]}" | bunx jq -s . > dist/presentations.json
-          echo "Generated $(wc -l < dist/presentations.json) presentations"
+          echo "✅ Generated $(wc -l < dist/presentations.json) presentations:"
+          cat dist/presentations.json
         else
-          echo "No presentations found"
+          echo '⚠️ No .md files found in slides/'
+          echo '[]' > dist/presentations.json
         fi
 
     - name: Build all Slidev presentations
@@ -57,25 +54,23 @@ jobs:
         total=0
         success=0
         
-        for dir in slides/*/; do
-          if [ -d "$dir" ]; then
-            name=$(basename "$dir")
+        for file in slides/*.md; do
+          if [ -f "$file" ]; then
+            name=$(basename "$file" .md)
             echo "::group::Building $name"
             
-            if [ -f "$dir/slides.md" ]; then
-              total=$((total + 1))
-              bunx slidev build "$dir/slides.md" --out "dist/$name" --base "/$name/" && {
-                success=$((success + 1))
-                echo "✅ $name built successfully"
-              } || echo "❌ $name failed"
-            else
-              echo "⚠️  No slides.md in $name"
-            fi
+            total=$((total + 1))
+            bunx slidev build "$file" --out "dist/$name" --base "/$name/" && {
+              success=$((success + 1))
+              echo "✅ $name → dist/$name/"
+            } || {
+              echo "❌ $name failed"
+            }
             echo "::endgroup::"
           fi
         done
         
-        echo "Built $success/$total presentations"
+        echo "::notice::Built $success/$total presentations"
         [ "$success" -gt 0 ] || exit 1
 
     - name: Create index page
@@ -170,7 +165,7 @@ jobs:
               .then(presentations => {
                 const container = document.getElementById('presentations');
                 if (presentations.length === 0) {
-                  container.innerHTML = '<div class="empty">📝 Презентации пока не добавлены<br><small>Добавьте папки в <code>slides/</code></small></div>';
+                  container.innerHTML = '<div class="empty">📝 Добавьте .md файлы в <code>slides/</code></div>';
                   return;
                 }
                 presentations.forEach(p => {
@@ -184,8 +179,7 @@ jobs:
                   container.appendChild(card);
                 });
               })
-              .catch(err => {
-                console.error('Error:', err);
+              .catch(() => {
                 document.getElementById('presentations').innerHTML = 
                   '<div class="empty">⚠️ Ошибка загрузки списка</div>';
               });
