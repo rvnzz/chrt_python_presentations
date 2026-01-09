@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎯 Мои Slidev презентации</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 2rem 1rem;
+      overflow-x: hidden;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 3rem;
+      animation: fadeInDown 1s ease-out;
+    }
+    
+    .header h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      margin-bottom: 0.5rem;
+      text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      background: linear-gradient(45deg, #fff, rgba(255,255,255,0.8));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .subtitle {
+      opacity: 0.9;
+      font-size: 1.2rem;
+      font-weight: 300;
+    }
+    
+    .stats {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      margin: 2rem 0;
+      flex-wrap: wrap;
+    }
+    
+    .stat {
+      text-align: center;
+      padding: 1rem;
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+    }
+    
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      gap: 1.5rem;
+      animation: fadeInUp 1s ease-out 0.3s both;
+    }
+    
+    @media (max-width: 768px) {
+      .grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+    }
+    
+    .card {
+      background: rgba(255,255,255,0.12);
+      backdrop-filter: blur(20px);
+      border-radius: 20px;
+      padding: 2rem;
+      cursor: pointer;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      border: 1px solid rgba(255,255,255,0.18);
+      position: relative;
+      overflow: hidden;
+      height: 140px;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, 
+        #ff6b6b, #feca57, #48dbfb, #4ecdc4, #45b7d1, #96ceb4, #ffeaa7);
+      background-size: 400% 400%;
+      animation: gradientShift 3s ease infinite;
+    }
+    
+    .card:hover {
+      transform: translateY(-12px) scale(1.02);
+      box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+      background: rgba(255,255,255,0.22);
+      border-color: rgba(255,255,255,0.4);
+    }
+    
+    .card:active {
+      transform: translateY(-8px) scale(1.01);
+    }
+    
+    .card h3 {
+      font-size: 1.4rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 600;
+    }
+    
+    .card .id {
+      color: rgba(255,255,255,0.85);
+      font-family: 'SF Mono', Menlo, Monaco, monospace;
+      font-size: 0.9rem;
+      padding: 0.4rem 0.75rem;
+      background: rgba(0,0,0,0.3);
+      border-radius: 6px;
+      margin-top: auto;
+      align-self: flex-start;
+    }
+    
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 300px;
+      grid-column: 1/-1;
+    }
+    
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top: 3px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    .empty {
+      grid-column: 1/-1;
+      text-align: center;
+      padding: 4rem 2rem;
+      opacity: 0.7;
+    }
+    
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    @keyframes gradientShift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎯 Презентации</h1>
+      <p class="subtitle">Выберите презентацию для просмотра</p>
+    </div>
+    
+    <div class="stats" id="stats" style="display: none;">
+      <div class="stat">
+        <div style="font-size: 2rem; font-weight: bold;" id="total-count">0</div>
+        <div>презентаций</div>
+      </div>
+    </div>
+    
+    <div id="presentations" class="grid">
+      <div class="loading">
+        <div class="spinner"></div>
+        <div style="margin-top: 1rem; opacity: 0.8;">Загружаем презентации...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function loadPresentations() {
+      try {
+        const response = await fetch('/presentations.json');
+        const presentations = await response.json();
+        
+        const container = document.getElementById('presentations');
+        const stats = document.getElementById('stats');
+        const totalCount = document.getElementById('total-count');
+        
+        if (presentations.length === 0) {
+          container.innerHTML = `
+            <div class="empty">
+              📝 <strong>Презентации пока не добавлены</strong><br><br>
+              <small>Добавьте .md файлы в папку <code>slides/</code></small>
+            </div>
+          `;
+          return;
+        }
+        
+        totalCount.textContent = presentations.length;
+        stats.style.display = 'flex';
+        
+        container.innerHTML = '';
+        
+        presentations.forEach((presentation, index) => {
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.style.animationDelay = `${index * 0.1}s`;
+          
+          card.onclick = () => {
+            // Плавный переход
+            card.style.transform = 'scale(0.95)';
+            setTimeout(() => window.location.href = presentation.path, 150);
+          };
+          
+          card.innerHTML = `
+            <h3>📊 ${presentation.title}</h3>
+            <div class="id">${presentation.id}</div>
+          `;
+          
+          container.appendChild(card);
+        });
+        
+      } catch (error) {
+        console.error('Ошибка загрузки:', error);
+        document.getElementById('presentations').innerHTML = `
+          <div class="empty">
+            ⚠️ <strong>Не удалось загрузить список</strong><br><br>
+            <small>Проверьте presentations.json</small>
+          </div>
+        `;
+      }
+    }
+    
+    // Загружаем при старте
+    loadPresentations();
+    
+    // PWA-like: обновляем при возврате на страницу
+    window.addEventListener('focus', loadPresentations);
+    window.addEventListener('pageshow', loadPresentations);
+  </script>
+</body>
+</html>
