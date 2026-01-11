@@ -34,14 +34,14 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-    # - name: Deploy to VDS via SSH
-    #   uses: appleboy/ssh-action@v1.0.3
-    #   with:
-    #     host: ${{ secrets.VDS_HOST }}
-    #     username: ${{ secrets.VDS_USER }}
-    #     key: ${{ secrets.VDS_SSH_KEY }}
-    #     script: |
-    #       cd /opt/slidev-host
-    #       docker-compose pull
-    #       docker-compose up -d
-    #       docker image prune -f
+    - name: Deploy to VDS via SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        password: ${{ secrets.SSH_PASSWORD }}
+        script: |
+          cd /opt/slidev-host
+          docker-compose pull
+          docker-compose up -d
+          docker image prune -f
