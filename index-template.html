@@ -202,7 +202,6 @@
         const presentations = await response.json();
         
         const container = document.getElementById('presentations');
-        const stats = document.getElementById('stats');
         
         if (presentations.length === 0) {
           container.innerHTML = `
@@ -213,9 +212,7 @@
           `;
           return;
         }
-        
-        stats.style.display = 'flex';
-        
+                
         container.innerHTML = '';
         
         presentations.forEach((presentation, index) => {
