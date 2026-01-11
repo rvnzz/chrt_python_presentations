@@ -184,7 +184,7 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>Презентации по Python</h1>
+      <h1>Презентации ОАП</h1>
     </div>
     
     <div id="presentations" class="grid">
@@ -203,7 +203,6 @@
         
         const container = document.getElementById('presentations');
         const stats = document.getElementById('stats');
-        const totalCount = document.getElementById('total-count');
         
         if (presentations.length === 0) {
           container.innerHTML = `
@@ -215,7 +214,6 @@
           return;
         }
         
-        totalCount.textContent = presentations.length;
         stats.style.display = 'flex';
         
         container.innerHTML = '';
