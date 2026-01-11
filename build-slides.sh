@@ -16,7 +16,6 @@ for file in slides/*.md; do
   
   # Заголовок из первого # 
   title=$(grep -m1 "^# " "$file" 2>/dev/null | sed 's/^# *//' || echo "$name")
-  title=$(echo "$title" | sed 's/"/\\"/g' | cut -c1-50)  # Эскейп " и урезаем
   
   if [ $FIRST -eq 0 ]; then
     echo "," >> "$TEMP_JSON"
